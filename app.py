@@ -1,17 +1,15 @@
+
 import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
-from optimizer import optimize_price
+from optimizer import optimize_price  # cloud-safe optimizer
 
 st.set_page_config(page_title="Airbnb Pricing Optimizer", layout="wide")
 
-# ------------------------------------
-# Load demand parameters
-# ------------------------------------
 @st.cache_data
 def load_params():
-    return pd.read_csv("data/demand_params.csv")
+    return pd.read_csv("demand_params.csv")
 
 df_params = load_params()
 
@@ -21,18 +19,13 @@ This app uses **prescriptive analytics** to recommend the *optimal nightly price
 for an Airbnb listing to maximize monthly revenue.
 """)
 
-# ------------------------------------
-# Sidebar inputs
-# ------------------------------------
 st.sidebar.header("📌 Select Inputs")
 
-# NOTE: The correct column is "neighbourhood"
 neighbourhood = st.sidebar.selectbox(
     "Neighborhood",
     options=df_params["neighbourhood"].unique()
 )
 
-# Filter row safely
 filtered = df_params[df_params["neighbourhood"] == neighbourhood]
 
 if filtered.empty:
@@ -49,24 +42,18 @@ p_max = st.sidebar.number_input("Maximum Price ($)", min_value=100, max_value=10
 a = st.sidebar.number_input("Demand Intercept (a)", value=float(a_default))
 b = st.sidebar.number_input("Price Sensitivity (b)", value=float(b_default))
 
-# ------------------------------------
-# Optimization
-# ------------------------------------
 if st.sidebar.button("Optimize Price"):
-    result = optimize_price(a, b, p_min, p_max)
+    result = optimize_price(p_min, p_max, a, b)
 
     st.subheader("📊 Optimization Results")
     col1, col2, col3 = st.columns(3)
 
     col1.metric("Optimal Price", f"${result['optimal_price']}")
-    col2.metric("Expected Occupancy", f"{result['occupancy'] * 100:.2f}%")
+    col2.metric("Expected Occupancy", f"{result['optimal_occupancy']}%")
     col3.metric("Projected Monthly Revenue", f"${result['optimal_revenue']}")
 
-    # --------------------------------
-    # Revenue curve
-    # --------------------------------
     p_vals = np.linspace(p_min, p_max, 200)
-    revenue_vals = p_vals * (a - b * p_vals)
+    revenue_vals = p_vals * (a - b * p_vals) * 30
 
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=p_vals, y=revenue_vals,
@@ -86,9 +73,6 @@ if st.sidebar.button("Optimize Price"):
     )
     st.plotly_chart(fig, use_container_width=True)
 
-    # --------------------------------
-    # Demand curve
-    # --------------------------------
     demand_vals = a - b * p_vals
 
     fig2 = go.Figure()
